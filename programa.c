@@ -16,8 +16,10 @@
 // tratamos de utilizar otras cosas como el join o más variables condición pero se quedaba colgado.
 ************************************************************/
 
-#define ATLETAS_MAX 10
+//#define ATLETAS_MAX 10
 #define TARIMAS_TOT 2
+int numeroAtletas;
+int numeroTarimas;
 
 pthread_mutex_t semaforoColaAtletas;
 pthread_mutex_t semaforoFicheroLog;
@@ -38,7 +40,7 @@ struct cola_Atletas {
 };
 
 /* Lista de 10 atletas máximo */
-struct cola_Atletas atletas[10];
+struct cola_Atletas *atletas;
 
 
 /* Fichero Log */
@@ -85,6 +87,16 @@ int main(int argc, char *argv[]) {
 	printf("- Introduce kill -10 PID para mandar al atleta a la 1.\n");
 	printf("- Introduce kill -12 PID para mandar al atleta a la 2.\n");
 	printf("- Introduce kill -13 PID para mostrar estadísticas de la competición.\n");
+
+	/* Comprobamos si el número de argumentos pasado es correcto */
+	if(argc != 3){
+		printf("Argumentos erróneos.\t Sintaxis: ./ejecutable numeroAtletas numeroTarimas\n");
+		return -1;	
+	}
+
+	numeroAtletas = atoi(argv[1]);
+	atletas = (struct cola_Atletas*) malloc(sizeof(struct cola_Atletas) * numeroAtletas);
+	numeroTarimas = atoi(argv[2]);
 	
 	/* Preparamos las senales que podemos recibir */
 	if(signal(SIGUSR1,nuevoCompetidor) == SIG_ERR){
@@ -126,7 +138,7 @@ int main(int argc, char *argv[]) {
 	/* Inicializamos la lista de atletas */
 	int i;
 	pthread_mutex_lock(&semaforoColaAtletas);
-	for(i = 0; i<ATLETAS_MAX; i++){
+	for(i = 0; i<numeroAtletas; i++){
 
 		/* Tenemos que inicializar cada uno de los componentes de struct de atletas */
 
@@ -165,10 +177,10 @@ int main(int argc, char *argv[]) {
 	sprintf(campeonato1, "El campeonato acaba de comenzar.");
 	writeLogMessage(inicio, campeonato1);
 	
-	pthread_t hiloTarima[2];
+	pthread_t hiloTarima[numeroTarimas];
 
 	/* Creamos los 2 hilos de tarimas */
-	for( i = 1; i<=2; i++){
+	for( i = 1; i<=numeroTarimas; i++){
 		
 		pthread_create(&hiloTarima[i-1], NULL, accionesTarima, (void *) &i);
 		sleep(1);
@@ -247,7 +259,7 @@ void nuevoCompetidor (int sig){
 
 int haySitioEnCola(){
 	int x;
-	for(x = 0; x < ATLETAS_MAX; x++){
+	for(x = 0; x < numeroAtletas; x++){
 		if(atletas[x].idAtleta == 0){
 			return x; //Encuentra posición libre
 		}
@@ -258,7 +270,7 @@ int haySitioEnCola(){
 // Mata al que está en la fuente 			// ERROR no imprime el log
 int noHayNadieEnCola(){
 	int x;
-	for(x = 0; x < ATLETAS_MAX; x++){
+	for(x = 0; x < numeroAtletas; x++){
 		if(atletas[x].idAtleta != 0 && atletas[x].necesita_beber == 1 ){
 			char matar[100];
 			sprintf(matar, "Me he quedado en la fuente colgado sin beber y me han matado.");
@@ -309,6 +321,8 @@ void *accionesAtleta (void *idAtleta ) { /*Acciones de los atletas en el circuit
 	}
 	pthread_mutex_unlock(&semaforoColaAtletas);
 	
+	// espera para ver si compite
+	sleep(3);
 
 		/* Comprueba si tiene que beber agua o tiene algun problema los atletas que estén en la cola cada 3 segundos */
 	while(atletas[posicion].ha_competido != 2 && atletas[posicion].ha_competido == 0) {
@@ -398,7 +412,7 @@ void *accionesTarima(void *tarima_asignada){
 			
 			/* buscamos atletas */
 			
-			for (i = 0; i < ATLETAS_MAX; i++){
+			for (i = 0; i < numeroAtletas; i++){
 				/* miramos primero que sea de esta tarima*/ // no se si falta lo de necesitabeber...
 				if(atletas[i].idAtleta != 0 && atletas[i].ha_competido == 0 && atletas[i].tarima_asignada == identificadorTarima){
 					
@@ -421,7 +435,7 @@ void *accionesTarima(void *tarima_asignada){
 			if(ocupada == 0){
 				//pthread_mutex_lock(&semaforoColaAtletas);	// poniendo unlock tb iba
 				/* ahora buscamos de otra tarima que no sea la prioritaria */
-				for (i = 0; i < ATLETAS_MAX; i++){
+				for (i = 0; i < numeroAtletas; i++){
 					/* miramos primero que sea de esta tarima*/ // no se si falta lo de necesitabeber...
 					if(atletas[i].idAtleta != 0 && atletas[i].ha_competido == 0){
 						
@@ -480,6 +494,9 @@ void *accionesTarima(void *tarima_asignada){
 			writeLogMessage(atleta, beber);
 			if((++fuenteOcupada)>=2){
 				
+				if(finalizar ==1){
+					int trasFin = posAtleta;
+				}
 				pthread_cond_signal(&condicionFuente);
 				/*if(finalizar == 1){
 					char matar[100];
@@ -493,7 +510,9 @@ void *accionesTarima(void *tarima_asignada){
 			pthread_cond_wait(&condicionFuente, &semaforoFuente);
 			char estaBebiendo[100];
 			sprintf(estaBebiendo, "El atleta está bebiendo ya porque le ayudan");
-			
+			if(finalizar ==1){
+				pthread_cancel(atletas[posAtleta].hiloAtleta);
+			}
 			// liberamos de la cola
 			atletas[posAtleta].ha_competido = 2;
 			atletas[posAtleta].idAtleta = 0;
@@ -734,7 +753,7 @@ void finalizarPrograma(){
 	/*finalizar = 2;
 
 	int i;
-	for(i = 0; i<TARIMAS_TOT; i++){
+	for(i = 0; i<numeroTarimas; i++){
 		pthread_join(hiloTarima[i], NULL);
 	}
 	/*char oroID[100];
@@ -808,7 +827,7 @@ void mostrarEstadisticas(){
 
 	// mostrar el número de atletas que se están atendiendo
 	int i;
-	for(i = 0; i<ATLETAS_MAX; i++){
+	for(i = 0; i<numeroAtletas; i++){
 		if(atletas[i].ha_competido == 1){
 			contadorAtendiendo++;
 		}
@@ -819,7 +838,7 @@ void mostrarEstadisticas(){
 	writeLogMessage(stat, atend);
 	
 	// mostrar el número de atletas que están esperando
-	for(i = 0; i<ATLETAS_MAX; i++){
+	for(i = 0; i<numeroAtletas; i++){
 		if(atletas[i].idAtleta != 0 && atletas[i].ha_competido == 0){
 			contadorEsperando++;
 		}
