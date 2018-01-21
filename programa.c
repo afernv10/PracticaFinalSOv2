@@ -160,10 +160,10 @@ int main(int argc, char *argv[]) {
 
 	/* guardar registro de comienzo de competicion en log */
 	char inicio[100];
-	char campeonato[100];
+	char campeonato1[100];
 	sprintf(inicio, "Bienvenido");
-	sprintf(campeonato, "El campeonato acaba de comenzar.");
-	writeLogMessage(inicio, campeonato);
+	sprintf(campeonato1, "El campeonato acaba de comenzar.");
+	writeLogMessage(inicio, campeonato1);
 	
 	pthread_t hiloTarima[2];
 
@@ -180,6 +180,30 @@ int main(int argc, char *argv[]) {
 	while(finalizar==0){//mientras finalizar sea 0 bucle infinito para esperar las señales
 		pause();	/* con pause en el momento que recibimos una vamos a la manejadora */
 	}
+
+	char oroID[100];
+	sprintf(oroID, "atleta_%d ",campeones[0].idAtleta);
+	char oroPts[100];
+	sprintf(oroPts, "Medalla de Oro - %d pts.",campeones[0].puntos );
+	writeLogMessage(oroID, oroPts);
+
+	char plataID[100];
+	sprintf(plataID, "atleta_%d ",campeones[1].idAtleta);
+	char plataPts[100];
+	sprintf(plataPts, "Medalla de Plata - %d pts.",campeones[1].puntos);
+	writeLogMessage(plataID, plataPts);
+
+	char bronceID[100];
+	sprintf(bronceID, "atleta_%d ",campeones[2].idAtleta);
+	char broncePts[100];
+	sprintf(broncePts, "Medalla de Bronce - %d pts.",campeones[2].puntos);
+	writeLogMessage(bronceID, broncePts);
+
+	char campeonato[100];
+	char cierre[100];
+	sprintf(campeonato, "El campeonato de powerlifting");
+	sprintf(cierre, "Termina hoy.");
+	writeLogMessage(campeonato, cierre);
 
 	return 0;
 }
@@ -242,6 +266,8 @@ int noHayNadieEnCola(){
 			sprintf(muerto, "atleta_%d",atletas[x].idAtleta);
 			writeLogMessage(muerto,matar);
 			pthread_cancel(atletas[x].hiloAtleta);
+		} else{
+			pthread_join(atletas[x].hiloAtleta, NULL);
 		}
 	}
 }
@@ -695,12 +721,17 @@ void finalizarPrograma(){
 		exit(-1);
 	}
 
+	char f[100];
+	sprintf(f, "entro en manejadora finalizar");
+	writeLogMessage(f,f);
+	finalizar=1;	// cambiamos el flag de finalizado
 	
 	while(noHayNadieEnCola() == -1){
 		// si entra aquí quiere decir que hay alguien todavía
 		sleep(1);
 	}
-	char oroID[100];
+	
+	/*char oroID[100];
 	sprintf(oroID, "atleta_%d ",campeones[0].idAtleta);
 	char oroPts[100];
 	sprintf(oroPts, "Medalla de Oro - %d pts.",campeones[0].puntos );
@@ -723,7 +754,8 @@ void finalizarPrograma(){
 	sprintf(campeonato, "El campeonato de powerlifting");
 	sprintf(cierre, "Termina hoy.");
 	writeLogMessage(campeonato, cierre);
-	finalizar=1;	// cambiamos el flag de finalizado
+	*/
+	
 }
 
 // devuelve la posicion de medalla si es mejor, para actualizar, y -1 si no
