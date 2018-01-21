@@ -468,7 +468,7 @@ void *accionesTarima(void *tarima_asignada){
 		char atleta[100];
 		sprintf(atleta, "atleta_%d ",atletaElegido);
 		// El juez le manda ir a beber agua independientemente del caso con 10% de probabilidad
-		int aBeber = aleatorioSalud(10, atletaElegido);
+		int aBeber = aleatorioSalud(90, atletaElegido);
 		if(aBeber == 1){
 
 			// al entrar en la fuente la tarima ya no estaría ocupada
@@ -535,7 +535,7 @@ void *accionesTarima(void *tarima_asignada){
 		ocupada = 0;
 		
 		// si se le ha dado a finalizar comprobamos si no hay nadie 			// ERROR no iba
-		/*if(finalizar == 1 && noHayNadieEnCola() == 1){
+		/*if(finalizar == 2){
 			char numeroCompes[100];
 			sprintf(numeroCompes, "Numero de competidores que han pasado:%d",competidos);
 			writeLogMessage(nTarima, numeroCompes);
@@ -731,6 +731,12 @@ void finalizarPrograma(){
 		sleep(1);
 	}
 	
+	/*finalizar = 2;
+
+	int i;
+	for(i = 0; i<TARIMAS_TOT; i++){
+		pthread_join(hiloTarima[i], NULL);
+	}
 	/*char oroID[100];
 	sprintf(oroID, "atleta_%d ",campeones[0].idAtleta);
 	char oroPts[100];
