@@ -175,7 +175,7 @@ int main(int argc, char *argv[]) {
 	/* guardar registro de comienzo de competicion en log */
 	char info[100];
 	char campeonato1[100];
-	sprintf(info, "  INFO  ");
+	sprintf(info, "  INFO   ");
 	sprintf(campeonato1, "La competición acaba de comenzar, pueden llegar ya atletas.");
 	writeLogMessage(info, campeonato1);
 	
@@ -276,7 +276,8 @@ int haySitioEnCola(){
 int noHayNadieEnCola(){
 	int x;
 	for(x = 0; x < numeroAtletas; x++){
-		if(atletas[x].idAtleta == 0 && atletas[x].necesita_beber == 1 ){
+		printf("atleta%d pos%d hc%d nb%d\n", atletas[x].idAtleta, x, atletas[x].ha_competido, atletas[x].necesita_beber);
+		/*if(atletas[x].idAtleta == 0 && atletas[x].necesita_beber == 1 ){
 			char matar[100];
 			sprintf(matar, "Me he quedado en la fuente colgado sin beber y me han matado.");
 			char muerto[100];
@@ -288,13 +289,13 @@ int noHayNadieEnCola(){
 			atletas[x].idAtleta = 0;
 			atletas[x].necesita_beber = 0;
 			pthread_mutex_unlock(&semaforoColaAtletas);
-		} else if (atletas[x].idAtleta != 0 && atletas[x].necesita_beber == 0){
-			printf("ajoin %d\n", x);
+		} else*/ if (atletas[x].idAtleta != 0 && atletas[x].necesita_beber == 0){
 			//pthread_join(atletas[x].hiloAtleta, NULL);
-			printf("djoin %d\n", x);
+			printf("join esperando atletas pos %d\n", x);
 			return -1;
 		}
 	}
+	return 0;
 }
 
 
@@ -337,7 +338,8 @@ void *accionesAtleta (void *idAtleta ) { /*Acciones de los atletas en el circuit
 	// espera para ver si compite
 	sleep(3);
 
-		/* Comprueba si tiene que beber agua o tiene algun problema los atletas que estén en la cola cada 3 segundos */
+	/* Comprueba si tiene que beber agua o tiene algun problema los atletas que estén en la cola cada 3 segundos */
+	// SON NECESARIOS MUTEX EN TODAS LAS CONSULTAS ???? y como
 	while(atletas[posicion].ha_competido == 0) {
 		
 		if(atletas[posicion].ha_competido == 0){	
@@ -374,7 +376,30 @@ void *accionesAtleta (void *idAtleta ) { /*Acciones de los atletas en el circuit
 		// aquí el atleta está compitiendo
 		// esperamos a que cambie el flag
 	}
-	
+
+	//if(atletas[posicion].necesita_beber == 1){
+	while(atletas[posicion].necesita_beber == 1){
+		printf("Entra en while beber fin \n");
+		if(finalizar == 1 && noHayNadieEnCola() == 0){
+			char matar[100];
+			sprintf(matar, "AMe he quedado en la fuente colgado sin beber y me han matado.");
+			char muerto[100];
+			sprintf(muerto, "atleta_%d",identificadorAtleta);
+			writeLogMessage(muerto, matar);
+
+			pthread_mutex_lock(&semaforoColaAtletas);
+			atletas[posicion].idAtleta = 0;
+			atletas[posicion].necesita_beber = 0;
+			atletas[posicion].tarima_asignada = 0;
+			atletas[posicion].ha_competido = 0;
+			pthread_mutex_unlock(&semaforoColaAtletas);
+
+			printf("va a dar exit atleta_%d\n", identificadorAtleta);
+			/* Se da fin al hilo */
+			pthread_exit(NULL);
+		}
+	}
+	//} else {
 	printf("elatleta_%d ha pasado el while de su metodo\n", atletas[posicion].idAtleta);
 	
 	// liberamos espacio en la cola del que se va
@@ -387,7 +412,8 @@ void *accionesAtleta (void *idAtleta ) { /*Acciones de los atletas en el circuit
 
 	printf("va a dar exit atleta_%d\n", identificadorAtleta);
 	/* Se da fin al hilo */
-	pthread_exit(NULL);				
+	pthread_exit(NULL);
+	//}				
 }
 
 
@@ -483,7 +509,6 @@ void *accionesTarima(void *tarima_asignada){
 		sprintf(beber, "El juez le manda beber agua.");
 		char atleta[100];
 		sprintf(atleta, "atleta_%d ",atletaElegido);
-		int a1 = atletaElegido;
 		// El juez le manda ir a beber agua independientemente del caso con 10% de probabilidad
 		int aBeber = aleatorioSalud(90, atletaElegido);
 
@@ -495,13 +520,14 @@ void *accionesTarima(void *tarima_asignada){
 			pthread_mutex_lock(&semaforoFuente);
 			
 			// codigo a beber
-			atletas[posAtleta].idAtleta = 0;
+			pthread_mutex_lock(&semaforoColaAtletas);	
 			atletas[posAtleta].necesita_beber = 1;
 			atletas[posAtleta].ha_competido = 2;
+			pthread_mutex_unlock(&semaforoColaAtletas);	
 			writeLogMessage(atleta, beber);
 			if((++fuenteOcupada)>=2){
 				
-				if(finalizar ==1){
+				/*if(finalizar ==1){
 					int trasFin = atletaElegido;
 					printf("if f %d\n", trasFin);
 					char matar[100];
@@ -509,24 +535,27 @@ void *accionesTarima(void *tarima_asignada){
 					char muerto[100];
 					sprintf(muerto, "atleta_%d",atletaElegido);
 					writeLogMessage(muerto, matar);
-				}
+				}*/
 				pthread_cond_signal(&condicionFuente);
 				
 			}
 			pthread_cond_wait(&condicionFuente, &semaforoFuente);
 			int atletaQueAyuda = obtenerAyudante();
 			char estaBebiendo[100];
+			// ERROR COMO DEJO HUECO EN LA COLA AL BEBER NO DEBERIA DE HABER IDS, por lo tanto no sé quien ayuda
 			if(atletaQueAyuda != -1){
 				
 				sprintf(estaBebiendo, "El atleta está bebiendo ya porque le ayuda el atleta_%d", atletaQueAyuda);
 			}
-			//char estaBebiendo[100];
-			//sprintf(estaBebiendo, "El atleta está bebiendo ya porque le ayuda el atleta_%d", a1);
 			
 			printf("fuente quien hay: atleta_%d, pos %d\n", atletas[posAtleta].idAtleta, posAtleta);
 			// liberamos de la cola
+
+			pthread_mutex_lock(&semaforoColaAtletas);	
+			atletas[posAtleta].necesita_beber = 0;
 			atletas[posAtleta].ha_competido = 2;
-			
+			pthread_mutex_unlock(&semaforoColaAtletas);	
+
 			writeLogMessage(atleta,estaBebiendo);
 			pthread_mutex_unlock(&semaforoFuente);
 			
@@ -551,14 +580,12 @@ void *accionesTarima(void *tarima_asignada){
 		sprintf(descansa2, "El juez vuelve a la tarima.");
 		
 
-		/* cada 4 descanso de jueces */
+		// cada 4 descanso de jueces
 		if(competidos % 4 == 0){
-			//pthread_mutex_lock(&semaforoColaAtletas);
 			ocupada = 1;
 			writeLogMessage(juez, descansa1);
 			sleep(10);
 			writeLogMessage(juez, descansa2);
-			//pthread_mutex_unlock(&semaforoColaAtletas);
 		}
 		ocupada = 0;
 		
@@ -573,8 +600,9 @@ void *accionesTarima(void *tarima_asignada){
 int obtenerAyudante(){
 	int i;
 	for(i = 0; i< numeroAtletas; i++){
-		if(atletas[i].necesita_beber){
-			return i;
+		printf("metodo ayudante atleta%d pos%d hc%d nb%d\n", atletas[i].idAtleta, i, atletas[i].ha_competido, atletas[i].necesita_beber);
+		if(atletas[i].necesita_beber == 1){
+			return atletas[i].idAtleta;
 		}
 	}
 	return -1;
@@ -583,6 +611,77 @@ int obtenerAyudante(){
 /********************************************************************************/
 /*************************** FUNCIONES AUXILIARES *******************************/
 /********************************************************************************/
+
+void levantamiento(int atletaID, int posAtleta){
+	printf("atletaId %d, [%d]\n", atletaID, posAtleta);
+	int opc, aBeber, tiempo, puntos;
+	opc = aleatorioLevantamiento(80, 10, 10);
+	char numAtleta[100];
+	sprintf(numAtleta, "atleta_%d ", atletaID);
+	char inicioLevantamiento[100];
+	sprintf(inicioLevantamiento, "Comienza a realizar el levantamiento");
+	
+	writeLogMessage(numAtleta, inicioLevantamiento);
+
+	char motivoFin[100];
+
+	switch(opc){
+		case 1:	/* movimiento válido */
+			
+			puntos = calculaAleatorios(60,300);
+			sprintf(motivoFin, "Resultado: Movimiento valido - puntuacion:%d.", puntos);
+			tiempo = calculaAleatorios(2,6);
+			sleep(tiempo);
+			break;
+		case 2:	/* nulo por normas */
+			puntos = 0;
+			sprintf(motivoFin, "Resultado: Movimiento nulo por normas - puntuacion:%d", puntos);
+			tiempo = calculaAleatorios(1,4);
+			sleep(tiempo);
+			break;
+		case 3:	/* nulo por fuerzas */
+			puntos = 0;
+			sprintf(motivoFin, "Resultado: Movimiento nulo por fuerzas - puntuacion:%d", puntos);
+			tiempo = calculaAleatorios(6,10);
+			sleep(tiempo);
+			break; 
+	}
+	char finLevantamiento[100];
+	sprintf(finLevantamiento, "Fin del levantamiento, ha tardado %d segundos", tiempo);
+	writeLogMessage(numAtleta, finLevantamiento);
+	writeLogMessage(numAtleta, motivoFin);
+	
+	// asignamos los puntos en el podio
+	pthread_mutex_lock(&semaforoPodio);
+	actualizaPodio(atletaID, puntos);	
+	pthread_mutex_unlock(&semaforoPodio);	
+
+
+}
+
+// Cuando se recibe kill -2 se llama a esta función  que cambia la variable finalizar a 1 para terminar el programa
+void finalizarPrograma(){
+	if(signal(SIGINT, finalizarPrograma) == SIG_ERR){
+		perror("Error al recibir la senal para finalizar la competición");
+		exit(-1);
+	}
+
+	char c[20];
+	sprintf(c, "  INFO   ");
+	char f[100];
+	sprintf(f, "Pitido final de la competición, no accederán más atletas.");
+	writeLogMessage(c,f);
+	
+	// cambiamos el flag de finalizado
+	// no recibimos más señales de nuevos competidores
+	finalizar=1;
+	
+	while(noHayNadieEnCola() == -1){
+		// si entra aquí quiere decir que hay alguien todavía
+		sleep(1);
+	}
+	
+}
 
 /* Calculamos el comportamiento para si tiene problemas de salud y se va de la cola y
 * para cuando el juez decide mandarle beber o no */
@@ -636,52 +735,7 @@ int aleatorioLevantamiento(int valido, int nuloNormas, int nuloFuerza){
     return caso;
 }
 
-void levantamiento(int atletaID, int posAtleta){
-	printf("atletaId %d, [%d]\n", atletaID, posAtleta);
-	int opc, aBeber, tiempo, puntos;
-	opc = aleatorioLevantamiento(80, 10, 10);
-	char numAtleta[100];
-	sprintf(numAtleta, "atleta_%d ", atletaID);
-	char inicioLevantamiento[100];
-	sprintf(inicioLevantamiento, "Comienza a realizar el levantamiento");
-	
-	writeLogMessage(numAtleta, inicioLevantamiento);
 
-	char motivoFin[100];
-
-	switch(opc){
-		case 1:	/* movimiento válido */
-			
-			puntos = calculaAleatorios(60,300);
-			sprintf(motivoFin, "Resultado: Movimiento valido - puntuacion:%d.", puntos);
-			tiempo = calculaAleatorios(2,6);
-			sleep(tiempo);
-			break;
-		case 2:	/* nulo por normas */
-			puntos = 0;
-			sprintf(motivoFin, "Resultado: Movimiento nulo por normas - puntuacion:%d", puntos);
-			tiempo = calculaAleatorios(1,4);
-			sleep(tiempo);
-			break;
-		case 3:	/* nulo por fuerzas */
-			puntos = 0;
-			sprintf(motivoFin, "Resultado: Movimiento nulo por fuerzas - puntuacion:%d", puntos);
-			tiempo = calculaAleatorios(6,10);
-			sleep(tiempo);
-			break; 
-	}
-	char finLevantamiento[100];
-	sprintf(finLevantamiento, "Fin del levantamiento, ha tardado %d segundos", tiempo);
-	writeLogMessage(numAtleta, finLevantamiento);
-	writeLogMessage(numAtleta, motivoFin);
-	
-	// asignamos los puntos en el podio
-	pthread_mutex_lock(&semaforoPodio);
-	actualizaPodio(atletaID, puntos);	
-	pthread_mutex_unlock(&semaforoPodio);	
-
-
-}
 
 
 int calculaAleatorios(int min, int max) {
@@ -702,31 +756,6 @@ int sacarPosicion(int identificadorAtleta) {
 	return posicion;
 }
 
-//Cuando se recibe kill -2 se llama a esta función  que cambia la variable finalizar a 1 para terminar el programa
-void finalizarPrograma(){
-	if(signal(SIGINT, finalizarPrograma) == SIG_ERR){
-		perror("Error al recibir la senal para finalizar la competición");
-		exit(-1);
-	}
-
-	char c[20];
-	sprintf(c, "COMPETICION");
-	char f[100];
-	sprintf(f, "Pitido final de la competición, no accederán más atletas.");
-	writeLogMessage(c,f);
-	
-	// cambiamos el flag de finalizado
-	// no recibimos más señales de nuevos competidores
-	finalizar=1;
-	
-	while(noHayNadieEnCola() == -1){
-		// si entra aquí quiere decir que hay alguien todavía
-		sleep(1);
-	}
-	
-	
-	
-}
 
 // devuelve la posicion de medalla si es mejor, para actualizar, y -1 si no
 int buscaMejorPosicion(int puntos){
