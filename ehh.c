@@ -77,6 +77,7 @@ int buscaMejorPosicion(int puntos);
 void actualizaPodio(int id, int puntos);
 void mostrarEstadisticas();
 int obtenerAyudante();
+int numeroEnFuente();
 
 
 int main(int argc, char *argv[]) {
@@ -276,26 +277,26 @@ int haySitioEnCola(){
 int noHayNadieEnCola(){
 	int x;
 	for(x = 0; x < numeroAtletas; x++){
-		printf("atleta%d pos%d hc%d nb%d\n", atletas[x].idAtleta, x, atletas[x].ha_competido, atletas[x].necesita_beber);
-		/*if(atletas[x].idAtleta == 0 && atletas[x].necesita_beber == 1 ){
-			char matar[100];
-			sprintf(matar, "Me he quedado en la fuente colgado sin beber y me han matado.");
-			char muerto[100];
-			sprintf(muerto, "atleta_%d",atletas[x].idAtleta);
-			printf("dead %d\n", x);
-			writeLogMessage(muerto,matar);
-			pthread_cancel(atletas[x].hiloAtleta);
-			pthread_mutex_lock(&semaforoColaAtletas);
-			atletas[x].idAtleta = 0;
-			atletas[x].necesita_beber = 0;
-			pthread_mutex_unlock(&semaforoColaAtletas);
-		} else*/ if (atletas[x].idAtleta != 0 && atletas[x].necesita_beber == 0){
+		printf("cola atleta%d pos%d hc%d nb%d\n", atletas[x].idAtleta, x, atletas[x].ha_competido, atletas[x].necesita_beber);
+		/*if(atletas[x].idAtleta == 0 && atletas[x].necesita_beber == 1 ){*/
+		if (atletas[x].idAtleta != 0 && atletas[x].ha_competido == 1 && atletas[x].necesita_beber == 0){
 			//pthread_join(atletas[x].hiloAtleta, NULL);
 			printf("join esperando atletas pos %d\n", x);
 			return -1;
 		}
 	}
 	return 0;
+}
+
+int numeroEnFuente(){
+	int i, cont = 0;
+	for(i = 0; i < numeroAtletas; i++){
+		if(atletas[i].necesita_beber == 1){
+			cont++;
+		}
+		printf("cont %d\n",cont );
+	}
+	return cont;
 }
 
 
@@ -379,13 +380,16 @@ void *accionesAtleta (void *idAtleta ) { /*Acciones de los atletas en el circuit
 
 	//if(atletas[posicion].necesita_beber == 1){
 	while(atletas[posicion].necesita_beber == 1){
-		printf("Entra en while beber fin \n");
+		//printf("Entra en while beber fin \n");
 		if(finalizar == 1 && noHayNadieEnCola() == 0){
-			char matar[100];
-			sprintf(matar, "AMe he quedado en la fuente colgado sin beber y me han matado.");
-			char muerto[100];
-			sprintf(muerto, "atleta_%d",identificadorAtleta);
-			writeLogMessage(muerto, matar);
+			printf("Entro para liberar beber\n");
+			if( numeroEnFuente() == 1 && atletas[posicion].necesita_beber == 1){
+				char matar[100];
+				sprintf(matar, "Me he quedado en la fuente colgado sin beber y me han matado.");
+				char muerto[100];
+				sprintf(muerto, "atleta_%d ",identificadorAtleta);
+				writeLogMessage(muerto, matar);
+			}
 
 			pthread_mutex_lock(&semaforoColaAtletas);
 			atletas[posicion].idAtleta = 0;
@@ -527,19 +531,16 @@ void *accionesTarima(void *tarima_asignada){
 			writeLogMessage(atleta, beber);
 			if((++fuenteOcupada)>=2){
 				
-				/*if(finalizar ==1){
-					int trasFin = atletaElegido;
-					printf("if f %d\n", trasFin);
-					char matar[100];
-					sprintf(matar, "2Me he quedado en la fuente colgado sin beber y me han matado.");
-					char muerto[100];
-					sprintf(muerto, "atleta_%d",atletaElegido);
-					writeLogMessage(muerto, matar);
-				}*/
 				pthread_cond_signal(&condicionFuente);
 				
 			}
 			pthread_cond_wait(&condicionFuente, &semaforoFuente);
+
+			pthread_mutex_lock(&semaforoColaAtletas);	
+			atletas[posAtleta].necesita_beber = 0;
+			atletas[posAtleta].ha_competido = 2;
+			pthread_mutex_unlock(&semaforoColaAtletas);
+			
 			int atletaQueAyuda = obtenerAyudante();
 			char estaBebiendo[100];
 			// ERROR COMO DEJO HUECO EN LA COLA AL BEBER NO DEBERIA DE HABER IDS, por lo tanto no sé quien ayuda
@@ -551,10 +552,7 @@ void *accionesTarima(void *tarima_asignada){
 			printf("fuente quien hay: atleta_%d, pos %d\n", atletas[posAtleta].idAtleta, posAtleta);
 			// liberamos de la cola
 
-			pthread_mutex_lock(&semaforoColaAtletas);	
-			atletas[posAtleta].necesita_beber = 0;
-			atletas[posAtleta].ha_competido = 2;
-			pthread_mutex_unlock(&semaforoColaAtletas);	
+				
 
 			writeLogMessage(atleta,estaBebiendo);
 			pthread_mutex_unlock(&semaforoFuente);
