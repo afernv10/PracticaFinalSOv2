@@ -85,21 +85,34 @@ int main(int argc, char *argv[]) {
 
 	srand(getpid()); /* semilla para el cálculo de aleatorios */
 
+
+
+	// Comprobación de argumentos y asignación de número máximo de atletas y tarimas
+	if(argc == 1){
+		
+		// si no pasamos argumentos al ejecutar, modelo inicial 10 y 2
+		numeroAtletas = 10;
+		atletas = (struct cola_Atletas*) malloc(sizeof(struct cola_Atletas) * numeroAtletas);
+		numeroTarimas = 2;
+	
+	} else if(argc == 3){
+
+		// ejecutamos como ./programa atletas tarimas
+		numeroAtletas = atoi(argv[1]);
+		atletas = (struct cola_Atletas*) malloc(sizeof(struct cola_Atletas) * numeroAtletas);
+		numeroTarimas = atoi(argv[2]);
+
+	} else {
+		printf("Argumentos erróneos.\t Sintaxis: ./ejecutable numeroAtletas numeroTarimas\n\n");
+		return -1;	
+	}
+
 	printf("\n******** Bienvenido a la competición ********\n");
 	printf("El PID correspondiente a esta ejecución es: %d\n", getpid());
 	printf("- Introduce kill -10 PID para mandar al atleta a la 1.\n");
 	printf("- Introduce kill -12 PID para mandar al atleta a la 2.\n");
 	printf("- Introduce kill -13 PID para mostrar estadísticas de la competición.\n");
-
-	/* Comprobamos si el número de argumentos pasado es correcto */
-	if(argc != 3){
-		printf("Argumentos erróneos.\t Sintaxis: ./ejecutable numeroAtletas numeroTarimas\n");
-		return -1;	
-	}
-
-	numeroAtletas = atoi(argv[1]);
-	atletas = (struct cola_Atletas*) malloc(sizeof(struct cola_Atletas) * numeroAtletas);
-	numeroTarimas = atoi(argv[2]);
+	
 	
 	/* Preparamos las senales que podemos recibir */
 	if(signal(SIGUSR1,nuevoCompetidor) == SIG_ERR){
@@ -241,6 +254,11 @@ void nuevoCompetidor (int sig){
 		exit(-1);
 	}
 
+	char colaLlena[100];
+	char info[20];
+	sprintf(colaLlena, "La cola está llena, no pueden acceder más atletas ahora.");
+	sprintf(info, "  INFO   ");
+
 
 	int sitio;
 	pthread_mutex_lock(&semaforoColaAtletas);
@@ -263,10 +281,15 @@ void nuevoCompetidor (int sig){
 			pthread_mutex_unlock(&semaforoColaAtletas);
 		}
 		pthread_create(&atletas[sitio].hiloAtleta,NULL,accionesAtleta,(void *) &atletas[sitio].idAtleta);
+	
+	} else{
+		// si la función haySitioEnCola devuelve un -1 quiere decir que no hay y que está llena la cola
+		writeLogMessage(info, colaLlena);
 	}
 
 }
 
+// método que busca una posición libre de la cola si la hay
 int haySitioEnCola(){
 	int x;
 	for(x = 0; x < numeroAtletas; x++){
@@ -277,7 +300,7 @@ int haySitioEnCola(){
 	return -1; //No hay sitio libre
 }
 
-// Mata al que está en la fuente 			// ERROR no imprime el log
+// Mata al que está en la fuente
 int noHayNadieEnCola(){
 	int x;
 	for(x = 0; x < numeroAtletas; x++){
@@ -618,10 +641,10 @@ void *accionesTarima(void *tarima_asignada){
 		}
 		ocupada = 0;
 		//printf("Hola3 %d\n", identificadorTarima);
-		printf("competidos %d\n", competidos);
+		/*printf("competidos %d\n", competidos);
 		char pasaron[20];
 		sprintf(pasaron, "Pasaron %d atletas.", competidos);
-		writeLogMessage(nTarima, pasaron);
+		writeLogMessage(nTarima, pasaron);*/
 		
 		/* aqui volvemos a buscar... bucle infinito */
 	}
