@@ -26,7 +26,6 @@ pthread_mutex_t semaforoPodio;
 pthread_mutex_t semaforoFin;
 pthread_mutex_t semaforoFuente;
 pthread_cond_t condicionFuente;
-pthread_cond_t condAtletasPasados;
 
 int contadorAtletas;
 
@@ -60,7 +59,12 @@ int fuenteOcupada;
 /* hilos pertenecientes a los atletas que vayan a la fuente */
 pthread_t *hiloFuente;
 
-int finalizar;//Cuando cambia a 1 termina el programa
+// flag finalizar toma los valores de:
+//	0: esperando en cola
+//	1: se cierran las puertas de la competicion (SIGINT)
+//	2: no hay ningún atleta que esté esperando para competir ni compitiendo
+//	3: quedaba uno en fuente y le matamos
+int finalizar;
 
 void nuevoCompetidor(int sig);			/* Actuará como manejadora, y crea el hilo del Atleta */
 void *accionesAtleta(void *idAtleta);	/* Función hilo de los atletas */
@@ -83,8 +87,7 @@ void noHayNadieYa();
 int main(int argc, char *argv[]) {
 
 
-	srand(getpid()); /* semilla para el cálculo de aleatorios */
-
+	//srand(getpid()); /* semilla para el cálculo de aleatorios */
 
 
 	// Comprobación de argumentos y asignación de número máximo de atletas y tarimas
@@ -146,7 +149,6 @@ int main(int argc, char *argv[]) {
 	if (pthread_mutex_init(&semaforoFin,NULL) != 0) exit(-1);
 	if (pthread_mutex_init(&semaforoFuente,NULL) != 0) exit(-1);
 	if (pthread_cond_init(&condicionFuente, NULL) !=0) exit(-1);
-	if (pthread_cond_init(&condAtletasPasados, NULL) !=0) exit(-1);
 
 	
 	/* Inicializamos el contador de atletas */
@@ -219,14 +221,13 @@ int main(int argc, char *argv[]) {
 		pause();	/* con pause en el momento que recibimos una vamos a la manejadora */
 	}
 
-	printf("Estamos aquí despues del while fin 0\n");
 
 
-	// con este join espera a que acaben las tarimas en caso de que pille a un juez descansando
-	int x;
+	// con este join esperaria a que acaben las tarimas en caso de que pille a un juez descansando
+	/*int x;
 	for(x = 0; x < numeroTarimas; x++){
 		pthread_join(hiloTarima[x], NULL);
-	}
+	}*/
 	
 	writeLogMessage(separador, separador);
 	
@@ -235,23 +236,40 @@ int main(int argc, char *argv[]) {
 	sprintf(podio, " PODIO ");
 	writeLogMessage(info, podio);
 
+	char podioNoOcupado[15];
+	sprintf(podioNoOcupado, "-------- ");
 	char oroID[100];
 	sprintf(oroID, "atleta_%d ",campeones[0].idAtleta);
 	char oroPts[100];
 	sprintf(oroPts, "Medalla de Oro - %d pts.",campeones[0].puntos );
-	writeLogMessage(oroID, oroPts);
+	if(campeones[0].idAtleta == 0){
+		writeLogMessage(podioNoOcupado, oroPts);
+	} else {
+		writeLogMessage(oroID, oroPts);
+	}
+	
 
 	char plataID[100];
 	sprintf(plataID, "atleta_%d ",campeones[1].idAtleta);
 	char plataPts[100];
 	sprintf(plataPts, "Medalla de Plata - %d pts.",campeones[1].puntos);
-	writeLogMessage(plataID, plataPts);
+	if(campeones[1].idAtleta == 0){
+		writeLogMessage(podioNoOcupado, plataPts);
+	} else {
+		writeLogMessage(plataID, plataPts);
+	}
+	
 
 	char bronceID[100];
 	sprintf(bronceID, "atleta_%d ",campeones[2].idAtleta);
 	char broncePts[100];
 	sprintf(broncePts, "Medalla de Bronce - %d pts.",campeones[2].puntos);
-	writeLogMessage(bronceID, broncePts);
+	if(campeones[2].idAtleta == 0){
+		writeLogMessage(podioNoOcupado, broncePts);
+	} else {
+		writeLogMessage(bronceID, broncePts);
+	}
+	
 
 	writeLogMessage(separador, separador);
 	
@@ -335,7 +353,6 @@ void noHayNadieYa(){
 		for(i = 0; i< numeroAtletas; i++){
 			if(atletas[i].idAtleta != 0){
 				hay = 1;
-				printf("hay atleta %d pos %d\n", atletas[i].idAtleta, i);
 			}
 		}
 
@@ -345,7 +362,6 @@ void noHayNadieYa(){
 			hay = 0;
 		}
 
-		printf("hay %d\n",hay );
 
 		if(hay == 1){
 			sleep(2);
@@ -452,11 +468,6 @@ void *accionesAtleta (void *idAtleta ) { /*Acciones de los atletas en el circuit
 	atletas[posicion].ha_competido = 0;
 	pthread_mutex_unlock(&semaforoColaAtletas);
 
-	printf("va a dar exit atleta_%d posicion %d\n", identificadorAtleta, posicion);
-	// aqui se muestra cuando depues de fin siguen
-	/*pthread_mutex_lock(&semaforoFin);
-	pthread_cond_signal(&condAtletasPasados);
-	pthread_mutex_unlock(&semaforoFin);*/
 	/* Se da fin al hilo */
 	pthread_exit(NULL);
 					
@@ -511,7 +522,6 @@ void *accionesTarima(void *tarima_asignada){
 						}
 						posAtleta = i;
 						atletas[posAtleta].ha_competido = 1;
-						printf("ATLETA HC1 at_%d\n", atletas[i].idAtleta);
 						// el atleta entra a tarima 
 						ocupada = 1;
 						variable = atletas[i].idAtleta;
@@ -537,8 +547,6 @@ void *accionesTarima(void *tarima_asignada){
 							}
 							posAtleta = i;
 							atletas[posAtleta].ha_competido = 1;
-							printf("o ATLETA HC1 at_%d\n", atletas[i].idAtleta);
-							//posAtleta = i;
 							ocupada = 1;
 							variable = atletas[i].idAtleta;
 							// el atleta entra a tarima
@@ -568,7 +576,7 @@ void *accionesTarima(void *tarima_asignada){
 			sprintf(atleta, "atleta_%d ",atletaElegido);
 			// El juez le manda ir a beber agua independientemente del caso con 10% de probabilidad
 			// 1 si tiene que beber, 0 si no
-			int aBeber = aleatorioSalud(90, atletaElegido);
+			int aBeber = aleatorioSalud(10, atletaElegido);
 
 			if(aBeber == 1){
 				// al entrar en la fuente la tarima ya no estaría ocupada
@@ -604,15 +612,25 @@ void *accionesTarima(void *tarima_asignada){
 			char descansa2[100];
 			sprintf(descansa2, "El juez vuelve a la tarima.");
 			char nosVamos[100];
-			sprintf(nosVamos, "El juez iba a descansar pero no es necesario porque nos vamos todos ya.");
+			sprintf(nosVamos, "El juez estaba en descanso pero no es necesario más porque nos vamos todos ya.");
 
 			// cada 4 descanso de jueces
 			if(competidos % 4 == 0){
-				ocupada = 1;
+				/*ocupada = 1;
 				writeLogMessage(juez, descansa1);
 				sleep(10);
-				writeLogMessage(juez, descansa2);
-				// TODO falta comtemplar opcion de que se quede juez en descanso
+				writeLogMessage(juez, descansa2);*/
+				ocupada = 1;
+				writeLogMessage(juez, descansa1);
+				int cuenta10 = 0;
+				while(cuenta10 < 10){
+					sleep(1);
+					cuenta10++;
+					if(finalizar != 0 && finalizar != 1){
+						cuenta10 = 11;
+						writeLogMessage(juez, nosVamos);
+					}
+				}
 			}
 
 			ocupada = 0;
@@ -636,7 +654,6 @@ void *fuente(void *posAtleta){
 	int id, haCompe, needBeber, tarima;
 	id = atletas[posicion].idAtleta;
 	
-	printf("entra en fuente id%d p%d \n",id, posicion);
 	pthread_mutex_lock(&semaforoColaAtletas);
 	atletas[posicion].idAtleta = 0;
 	atletas[posicion].ha_competido = 2;
@@ -666,7 +683,6 @@ void *fuente(void *posAtleta){
 		char muerte[100];
 		sprintf(muerte, "Estaba esperando para beber pero me voy porque me dejaron colgado.");
 		writeLogMessage(atleta, muerte);
-		printf("AQUI CAMBIO A 3 FINALIZAR\n");
 		// cambiamos para esperar a que echemos al que quedaba
 		pthread_mutex_lock(&semaforoFin);
 		finalizar = 3;
@@ -679,7 +695,6 @@ void *fuente(void *posAtleta){
 	}
 	pthread_mutex_unlock(&semaforoFuente);
 
-	printf("sale de fuente id%d p%d\n", id, posicion);
 	pthread_exit(NULL);
 }
 
@@ -690,7 +705,7 @@ void *fuente(void *posAtleta){
 /********************************************************************************/
 
 void levantamiento(int atletaID, int posAtleta){
-	printf("atletaId %d, [%d]\n", atletaID, posAtleta);
+
 	int opc, aBeber, tiempo, puntos;
 	opc = aleatorioLevantamiento(80, 10, 10);
 	char numAtleta[100];
@@ -887,7 +902,6 @@ void mostrarEstadisticas(){
 	int contadorAtendiendo = 0, contadorEsperando = 0;
 	
 	// tenemos que mostrar estadisticas tanto en consola como en log 
-	printf("\nESTADÍSTICAS:\n");
 	char stat[20];
 	sprintf(stat, "  STATS  ");
 
@@ -898,7 +912,6 @@ void mostrarEstadisticas(){
 			contadorAtendiendo++;
 		}
 	}
-	printf("\tNúmero de atletas compitiendo en pista: %d\n", contadorAtendiendo);
 	char atend[100];
 	sprintf(atend, "Número de atletas compitiendo--> %d", contadorAtendiendo);
 	writeLogMessage(stat, atend);
@@ -909,14 +922,14 @@ void mostrarEstadisticas(){
 			contadorEsperando++;
 		}
 	}
-	printf("\tNúmero de atletas esperando en cola: %d\n", contadorEsperando);
+	
 	char esperando[100];
 	sprintf(esperando, "Número de atletas esperando--> %d", contadorEsperando);
 	writeLogMessage(stat, esperando);
 
 
 	// mostrar el número de atletas totales pasados por el sistema
-	printf("\tNúmero de atletas que han accedido al sistema de la competición: %d\n", contadorAtletas);
+	
 	char nTot[50];
 	sprintf(nTot, "Número de Atletas Totales--> %d", contadorAtletas);
 	writeLogMessage(stat, nTot);
