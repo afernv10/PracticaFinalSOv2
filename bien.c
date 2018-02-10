@@ -82,6 +82,8 @@ int buscaMejorPosicion(int puntos);
 void actualizaPodio(int id, int puntos);
 void mostrarEstadisticas();
 void noHayNadieYa();
+int quedanCompitiendo();
+int quedanEsperando();
 
 
 int main(int argc, char *argv[]) {
@@ -598,6 +600,16 @@ void *accionesTarima(void *tarima_asignada){
 				pthread_mutex_lock(&semaforoColaAtletas);	
 				atletas[posAtleta].ha_competido = 2;
 				pthread_mutex_unlock(&semaforoColaAtletas);
+				if(quedanCompitiendo() == 0 && quedanEsperando() == 0){
+					while(finalizar != 2){
+					sleep(1);
+					}
+					pthread_mutex_lock(&semaforoFin);
+					finalizar = 3;
+					pthread_mutex_unlock(&semaforoFin);
+				}
+				
+
 			}
 				
 
@@ -631,6 +643,9 @@ void *accionesTarima(void *tarima_asignada){
 						writeLogMessage(juez, nosVamos);
 					}
 				}
+				if(cuenta10 == 10){
+					writeLogMessage(juez, descansa2);
+				}
 			}
 
 			ocupada = 0;
@@ -646,6 +661,26 @@ void *accionesTarima(void *tarima_asignada){
 	writeLogMessage(nTarima, pasaron);	
 
 	pthread_exit(NULL);
+}
+
+int quedanCompitiendo(){
+	int i;
+	for(i = 0; i<numeroAtletas; i++){
+		if(atletas[i].ha_competido == 1){
+			return 1;
+		}
+	}
+	return 0;
+}
+
+int quedanEsperando(){
+	int i;
+	for(i = 0; i<numeroAtletas; i++){
+		if(atletas[i].idAtleta != 0 && atletas[i].ha_competido == 0){
+			return 1;
+		}
+	}
+	return 0;
 }
 
 void *fuente(void *posAtleta){
