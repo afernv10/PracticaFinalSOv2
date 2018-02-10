@@ -222,6 +222,11 @@ int main(int argc, char *argv[]) {
 	printf("Estamos aquí despues del while fin 0\n");
 
 
+	// con este join espera a que acaben las tarimas en caso de que pille a un juez descansando
+	int x;
+	for(x = 0; x < numeroTarimas; x++){
+		pthread_join(hiloTarima[x], NULL);
+	}
 	
 	writeLogMessage(separador, separador);
 	
@@ -330,6 +335,7 @@ void noHayNadieYa(){
 		for(i = 0; i< numeroAtletas; i++){
 			if(atletas[i].idAtleta != 0){
 				hay = 1;
+				printf("hay atleta %d pos %d\n", atletas[i].idAtleta, i);
 			}
 		}
 
@@ -446,7 +452,7 @@ void *accionesAtleta (void *idAtleta ) { /*Acciones de los atletas en el circuit
 	atletas[posicion].ha_competido = 0;
 	pthread_mutex_unlock(&semaforoColaAtletas);
 
-	printf("va a dar exit atleta_%d\n", identificadorAtleta);
+	printf("va a dar exit atleta_%d posicion %d\n", identificadorAtleta, posicion);
 	// aqui se muestra cuando depues de fin siguen
 	/*pthread_mutex_lock(&semaforoFin);
 	pthread_cond_signal(&condAtletasPasados);
@@ -491,18 +497,21 @@ void *accionesTarima(void *tarima_asignada){
 
 			// bloqueamos semaforo, solo puede entrar uno a la vez a tarima 
 			pthread_mutex_lock(&semaforoColaAtletas);
-
+			int cont1 = 0, cont2 = 0;
 			// buscamos atletas
 			for (i = 0; i < numeroAtletas; i++){
 				// miramos primero que sea de esta tarima
 				if(atletas[i].idAtleta != 0 && atletas[i].ha_competido == 0 && atletas[i].tarima_asignada == identificadorTarima){
 					
 					if(atletas[i].idAtleta < variable){
-							
+						cont1++;
 						atletaElegido = atletas[i].idAtleta;
+						if(cont1>=2){
+							atletas[posAtleta].ha_competido = 0;
+						}
 						posAtleta = i;
 						atletas[posAtleta].ha_competido = 1;
-						
+						printf("ATLETA HC1 at_%d\n", atletas[i].idAtleta);
 						// el atleta entra a tarima 
 						ocupada = 1;
 						variable = atletas[i].idAtleta;
@@ -512,7 +521,7 @@ void *accionesTarima(void *tarima_asignada){
 			}
 			
 			if(ocupada == 0){
-			
+				
 				// ahora buscamos de otra tarima que no sea la prioritaria 
 				for (i = 0; i < numeroAtletas; i++){
 					// miramos primero que sea de esta tarima
@@ -520,11 +529,16 @@ void *accionesTarima(void *tarima_asignada){
 						
 						if(atletas[i].idAtleta < variable){
 							sprintf(ayudaTarima, "Entra el atleta_%d de la otra cola para avanzar.",atletas[i].idAtleta);
-							writeLogMessage(nTarima, ayudaTarima);	
+							writeLogMessage(nTarima, ayudaTarima);
+							cont2++;	
 							atletaElegido = atletas[i].idAtleta;
+							if(cont2>=2){
+								atletas[posAtleta].ha_competido = 0;
+							}
 							posAtleta = i;
 							atletas[posAtleta].ha_competido = 1;
-							posAtleta = i;
+							printf("o ATLETA HC1 at_%d\n", atletas[i].idAtleta);
+							//posAtleta = i;
 							ocupada = 1;
 							variable = atletas[i].idAtleta;
 							// el atleta entra a tarima
@@ -619,11 +633,10 @@ void *accionesTarima(void *tarima_asignada){
 void *fuente(void *posAtleta){
 
 	int posicion = *(int*) posAtleta;
-	printf("posAtleta %d\n",posicion );
 	int id, haCompe, needBeber, tarima;
 	id = atletas[posicion].idAtleta;
-	printf("id %d\n",id );
-	printf("entra en fuente p%d \n", posicion);
+	
+	printf("entra en fuente id%d p%d \n",id, posicion);
 	pthread_mutex_lock(&semaforoColaAtletas);
 	atletas[posicion].idAtleta = 0;
 	atletas[posicion].ha_competido = 2;
@@ -666,7 +679,7 @@ void *fuente(void *posAtleta){
 	}
 	pthread_mutex_unlock(&semaforoFuente);
 
-
+	printf("sale de fuente id%d p%d\n", id, posicion);
 	pthread_exit(NULL);
 }
 
@@ -683,7 +696,7 @@ void levantamiento(int atletaID, int posAtleta){
 	char numAtleta[100];
 	sprintf(numAtleta, "atleta_%d ", atletaID);
 	char inicioLevantamiento[100];
-	sprintf(inicioLevantamiento, "Comienza a realizar el levantamiento");
+	sprintf(inicioLevantamiento, "Comienza a realizar el levantamiento.");
 	
 	writeLogMessage(numAtleta, inicioLevantamiento);
 
@@ -693,25 +706,25 @@ void levantamiento(int atletaID, int posAtleta){
 		case 1:	/* movimiento válido */
 			
 			puntos = calculaAleatorios(60,300);
-			sprintf(motivoFin, "Resultado: Movimiento valido - puntuacion:%d.", puntos);
+			sprintf(motivoFin, "Resultado: Movimiento valido - puntuacion: %d.", puntos);
 			tiempo = calculaAleatorios(2,6);
 			sleep(tiempo);
 			break;
 		case 2:	/* nulo por normas */
 			puntos = 0;
-			sprintf(motivoFin, "Resultado: Movimiento nulo por normas - puntuacion:%d", puntos);
+			sprintf(motivoFin, "Resultado: Movimiento nulo por normas - puntuacion: %d.", puntos);
 			tiempo = calculaAleatorios(1,4);
 			sleep(tiempo);
 			break;
 		case 3:	/* nulo por fuerzas */
 			puntos = 0;
-			sprintf(motivoFin, "Resultado: Movimiento nulo por fuerzas - puntuacion:%d", puntos);
+			sprintf(motivoFin, "Resultado: Movimiento nulo por fuerzas - puntuacion: %d.", puntos);
 			tiempo = calculaAleatorios(6,10);
 			sleep(tiempo);
 			break; 
 	}
 	char finLevantamiento[100];
-	sprintf(finLevantamiento, "Fin del levantamiento, ha tardado %d segundos", tiempo);
+	sprintf(finLevantamiento, "Fin del levantamiento, ha tardado %d segundos.", tiempo);
 	writeLogMessage(numAtleta, finLevantamiento);
 	writeLogMessage(numAtleta, motivoFin);
 	
@@ -754,7 +767,8 @@ void finalizarPrograma(){
 	while(finalizar != 3){
 		sleep(1);
 	}
-	
+
+	// se va al main
 }
 
 /* Calculamos el comportamiento para si tiene problemas de salud y se va de la cola y
