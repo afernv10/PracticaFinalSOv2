@@ -601,7 +601,7 @@ void *accionesTarima(void *tarima_asignada){
 				atletas[posAtleta].ha_competido = 2;
 				pthread_mutex_unlock(&semaforoColaAtletas);
 				if(quedanCompitiendo() == 0 && quedanEsperando() == 0){
-					while(finalizar != 2){
+					while(finalizar != 2 && finalizar != 3){
 					sleep(1);
 					}
 					pthread_mutex_lock(&semaforoFin);
