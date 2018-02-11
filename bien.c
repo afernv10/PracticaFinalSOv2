@@ -84,7 +84,7 @@ void mostrarEstadisticas();
 void noHayNadieYa();
 int quedanCompitiendo();
 int quedanEsperando();
-
+void redimensionAtletas();
 
 int main(int argc, char *argv[]) {
 
@@ -121,6 +121,7 @@ int main(int argc, char *argv[]) {
 	printf("\t- Introduce " YELLOW "kill -12 PID" ENDCOLOR " para mandar al atleta a la " YELLOW "tarima 2.\n" ENDCOLOR );
 	printf("\t- Introduce " YELLOW "kill -13 PID" ENDCOLOR " para mostrar " YELLOW "estadísticas" ENDCOLOR " de la competición.\n");
 	printf("\t- Introduce " YELLOW "kill -2 PID para terminar" ENDCOLOR " la competición\n");
+	printf("\t- Introduce " YELLOW "kill -3 PID para aumentar atletas" ENDCOLOR " que pueden entrar en cola.\n");
 	printf("\t- La competición tendrá " YELLOW "%d atletas máximo" ENDCOLOR " en cola y " YELLOW "%d tarimas.\n" ENDCOLOR, numeroAtletas, numeroTarimas);
 	
 	
@@ -137,11 +138,16 @@ int main(int argc, char *argv[]) {
 		perror("Error al recibir la señal para finalizar la competición.");
 		exit(-1);
 	}
+	if(signal(SIGQUIT, redimensionAtletas) == SIG_ERR){
+		perror("Error al recibir la señal para redimensionar la cola.");
+		exit(-1);
+	}
 	if(signal(SIGPIPE, mostrarEstadisticas) == SIG_ERR){
 		perror("Error al recibir la señal para mostrar las estadísticas.");
 		exit(-1);
 	}
 
+	
 	/******* Inicializamos recursos *******/
 
 	/* Inicializamos semáforos */
@@ -206,6 +212,12 @@ int main(int argc, char *argv[]) {
 	sprintf(info, "  INFO   ");
 	sprintf(campeonato1, "La competición acaba de comenzar, pueden llegar ya atletas.");
 	writeLogMessage(info, campeonato1);
+	char atMax[100];
+	sprintf(atMax, "El numero de atletas máximos en cola es %d", numeroAtletas);
+	writeLogMessage(info, atMax);
+	char taMax[100];
+	sprintf(taMax, "El número de tarimas de la competición es %d", numeroTarimas);
+	writeLogMessage(info, taMax);
 	writeLogMessage(separador, separador);
 
 	pthread_t hiloTarima[numeroTarimas];
@@ -628,24 +640,26 @@ void *accionesTarima(void *tarima_asignada){
 
 			// cada 4 descanso de jueces
 			if(competidos % 4 == 0){
-				/*ocupada = 1;
-				writeLogMessage(juez, descansa1);
-				sleep(10);
-				writeLogMessage(juez, descansa2);*/
+				
 				ocupada = 1;
 				writeLogMessage(juez, descansa1);
 				int cuenta10 = 0;
-				while(cuenta10 < 10){
-					sleep(1);
-					cuenta10++;
-					if(finalizar != 0 && finalizar != 1){
-						cuenta10 = 11;
-						writeLogMessage(juez, nosVamos);
+				if(finalizar != 0 && finalizar != 1){
+					writeLogMessage(juez, nosVamos);
+				} else {
+					while(cuenta10 < 10){
+						sleep(1);
+						cuenta10++;
+						if(finalizar != 0 && finalizar != 1){
+							cuenta10 = 11;
+							writeLogMessage(juez, nosVamos);
+						}
+					}
+					if(cuenta10 == 10){
+						writeLogMessage(juez, descansa2);
 					}
 				}
-				if(cuenta10 == 10){
-					writeLogMessage(juez, descansa2);
-				}
+				
 			}
 
 			ocupada = 0;
@@ -656,32 +670,13 @@ void *accionesTarima(void *tarima_asignada){
 	}
 
 	// se ha dado a finalizar
-	//char pasaron[20];
 	sprintf(pasaron, "Pasaron %d atletas.", competidos);
 	writeLogMessage(nTarima, pasaron);	
 
 	pthread_exit(NULL);
 }
 
-int quedanCompitiendo(){
-	int i;
-	for(i = 0; i<numeroAtletas; i++){
-		if(atletas[i].ha_competido == 1){
-			return 1;
-		}
-	}
-	return 0;
-}
 
-int quedanEsperando(){
-	int i;
-	for(i = 0; i<numeroAtletas; i++){
-		if(atletas[i].idAtleta != 0 && atletas[i].ha_competido == 0){
-			return 1;
-		}
-	}
-	return 0;
-}
 
 void *fuente(void *posAtleta){
 
@@ -738,6 +733,25 @@ void *fuente(void *posAtleta){
 /********************************************************************************/
 /*************************** FUNCIONES AUXILIARES *******************************/
 /********************************************************************************/
+int quedanCompitiendo(){
+	int i;
+	for(i = 0; i<numeroAtletas; i++){
+		if(atletas[i].ha_competido == 1){
+			return 1;	// quedan
+		}
+	}
+	return 0;	// no quedan
+}
+
+int quedanEsperando(){
+	int i;
+	for(i = 0; i<numeroAtletas; i++){
+		if(atletas[i].idAtleta != 0 && atletas[i].ha_competido == 0){
+			return 1;	// quedan
+		}
+	}
+	return 0;	// no quedan
+}
 
 void levantamiento(int atletaID, int posAtleta){
 
@@ -971,7 +985,25 @@ void mostrarEstadisticas(){
 
 	writeLogMessage(separador, separador);
 }
-	
+
+// cuando se recibe kill -3 pid
+void redimensionAtletas(){
+	if(signal(SIGQUIT, redimensionAtletas) == SIG_ERR){
+		perror("Error al recibir la señal para redimensionar la cola.");
+		exit(-1);
+	}
+
+	numeroAtletas = numeroAtletas + 1;
+	atletas = (struct cola_Atletas*) realloc(atletas, sizeof(struct cola_Atletas) * numeroAtletas);
+
+	char i[20];
+	sprintf(i, "  INFO   ");
+	char unoMas[100];
+	sprintf(unoMas, "Se ha añadido un sitio más en la cola, ahora hay %d.", numeroAtletas);
+	writeLogMessage(i, unoMas);
+
+
+}	
 
 void writeLogMessage( char *id , char *msg){
 
